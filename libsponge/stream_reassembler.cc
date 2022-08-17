@@ -1,5 +1,5 @@
 #include "stream_reassembler.hh"
-#include <iostream>
+
 // Dummy implementation of a stream reassembler.
 
 // For Lab 1, please replace with a real implementation that passes the
@@ -93,3 +93,5 @@ size_t StreamReassembler::unassembled_bytes() const {
 }
 
 bool StreamReassembler::empty() const { return unassembled_bytes()==0; }
+
+size_t StreamReassembler::ack_index() const { return _output.bytes_read()+_output.buffer_size(); }

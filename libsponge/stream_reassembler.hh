@@ -15,9 +15,9 @@ class StreamReassembler {
     
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
-    size_t _head_index;
+    size_t _head_index;  //!< begin of window
     bool _eof;
-    std::map <size_t,std::string> _unreassembled;
+    std::map <size_t,std::string> _unreassembled;  //!< stored unordered data
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
     //! \note This capacity limits both the bytes that have been reassembled,
@@ -49,6 +49,9 @@ class StreamReassembler {
     //! \brief Is the internal state empty (other than the output stream)?
     //! \returns `true` if no substrings are waiting to be assembled
     bool empty() const;
+
+    //! \brief The acknowledge index of the stream, i.e., the index of the next interested substring
+    size_t ack_index() const;
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH

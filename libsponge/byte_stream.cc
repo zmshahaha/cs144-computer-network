@@ -16,7 +16,6 @@ ByteStream::ByteStream(const size_t capacity) :
     _capacity(capacity),
     _buffer(),
     _is_write_end(false),
-    _is_read_end(false),
     _written_bytes(0),
     _read_bytes(0){}
 
