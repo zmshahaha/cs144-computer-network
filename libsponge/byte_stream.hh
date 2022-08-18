@@ -18,10 +18,10 @@ class ByteStream {
     // different approaches.
     
     size_t _capacity;
-    std::string _buffer;
-    bool _is_write_end;
-    size_t _written_bytes;
-    size_t _read_bytes;
+    std::string _buffer{};
+    bool _is_write_end{false};
+    size_t _written_bytes{0};
+    size_t _read_bytes{0};
     bool _error{};  //!< Flag indicating that the stream suffered an error.
 
   public:
