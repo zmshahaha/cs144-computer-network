@@ -114,10 +114,10 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 void TCPSender::tick(const size_t ms_since_last_tick) {
     _timer += ms_since_last_tick;
     if (_timer >= _retransmission_timeout && !_segments_outstanding.empty()) {
-        //send not acked data just when timeout
+        // send not acked data just when timeout
         _segments_out.push(_segments_outstanding.front());
-        //if not ack syn, the transaction not start,so dont need hurry
-        //if ack but win=0, the sender want know when receiver can receive in time
+        // if not ack syn, the transaction not start,so dont need hurry
+        // if ack but win=0, the sender want know when receiver can receive in time
         if(_window_size || _segments_outstanding.front().header().syn )
         {
             _consecutive_retransmission++;
