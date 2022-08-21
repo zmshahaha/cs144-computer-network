@@ -35,21 +35,18 @@ void NetworkInterface::send_datagram(const InternetDatagram &dgram, const Addres
     EthernetFrame frame;
     frame.header().type = EthernetHeader::TYPE_IPv4;
     frame.header().src = _ethernet_address;
-    frame.payload() = move(dgram.serialize());
+    frame.payload() = dgram.serialize();  //diff between with func move?
     if (_mac_ip_cache.count(next_hop_ip)) {
         frame.header().dst = _mac_ip_cache[next_hop_ip].mac;
         _frames_out.push(frame);
     } else {
-        if(!_pend_frames.count(next_hop_ip))
-            {_pend_frames[next_hop_ip]=ip_pendframe();cerr<<next_hop_ip<<"--->"<<_pend_frames[next_hop_ip].arp_req_time;}
-
-        _pend_frames.find(next_hop_ip)->second.pend_ip_frames.push(frame);
+        _pend_frames[next_hop_ip].pend_ip_frames.push(frame);
         send_arp_request();
     }
 }
 
 //! \param[in] frame the incoming Ethernet frame
-optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &frame) {//cerr<<"recv frame"<<endl;
+optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &frame) {
     // if is valid frame
     if (frame.header().dst != ETHERNET_BROADCAST && frame.header().dst != _ethernet_address)
         return nullopt;
@@ -63,12 +60,14 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
     }
 
     // if is a arp
-    if (frame.header().type == EthernetHeader::TYPE_ARP) {cerr<<"wswsw"<<endl;
+    if (frame.header().type == EthernetHeader::TYPE_ARP) {
         ARPMessage msg;
         if (msg.parse(frame.payload()) == ParseResult::NoError) {
             uint32_t ip = msg.sender_ip_address;
+            // update cache
             _mac_ip_cache[ip].mac = msg.sender_ethernet_address;
-            _mac_ip_cache[ip].time_to_erase = _timer + MAX_CACHE_TIME;  // may exist before
+            _mac_ip_cache[ip].time_to_erase = _timer + MAX_CACHE_TIME;
+            // push which is received ip and update pend frame
             while (!_pend_frames[ip].pend_ip_frames.empty())
             {
                 _pend_frames[ip].pend_ip_frames.front().header().dst=_mac_ip_cache[ip].mac;
@@ -76,11 +75,9 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
                 _pend_frames[ip].pend_ip_frames.pop();
             }
             _pend_frames.erase(ip);
-            
-            if (msg.opcode == ARPMessage::OPCODE_REQUEST && msg.target_ip_address == _ip_address.ipv4_numeric()) {
-                // packet my ip-mac map
+
+            if (msg.opcode == ARPMessage::OPCODE_REQUEST && msg.target_ip_address == _ip_address.ipv4_numeric())
                 send_helper(ARPMessage::OPCODE_REPLY,msg.sender_ip_address,msg.sender_ethernet_address);
-            } 
         }
     }
     return nullopt;
@@ -92,7 +89,8 @@ void NetworkInterface::tick(const size_t ms_since_last_tick) {
     for (auto it = _mac_ip_cache.begin(); it != _mac_ip_cache.end();)
     {
         if(it->second.time_to_erase<_timer)
-            _mac_ip_cache.erase(it);
+            // don't forget to return to iter
+            it=_mac_ip_cache.erase(it);
         else
             it++;
     }
@@ -102,16 +100,16 @@ void NetworkInterface::tick(const size_t ms_since_last_tick) {
 
 void NetworkInterface::send_arp_request()
 {
-    for(auto it : _pend_frames)
+    // why auto it : _pend failed??
+    for(auto it=_pend_frames.begin(); it!=_pend_frames.end();it++)
     {
         // the first frame pended in this ip
         // init arq_req_time and send an arp req
-        if(it.second.arp_req_time<=_timer){
-            uint32_t ip=it.first;
+        if(it->second.arp_req_time<=_timer){
+            uint32_t ip=it->first;
             send_helper(ARPMessage::OPCODE_REQUEST,ip);
-            it.second.arp_req_time=_timer+MAX_RETX_WAITING_TIME;
-            cerr<<it.first<<' '<<it.second.arp_req_time<<endl;
-            cerr<<_pend_frames.begin()->first<<' '<<_pend_frames.begin()->second.arp_req_time<<endl;}
+            it->second.arp_req_time=_timer+MAX_RETX_WAITING_TIME;
+        }
     }
 }
 
@@ -132,6 +130,6 @@ void NetworkInterface::send_helper(const uint16_t& arp_opcode,
     arp_frame.header().type = EthernetHeader::TYPE_ARP;
     arp_frame.header().src = _ethernet_address;
     arp_frame.header().dst = target_ethernet_address;
-    arp_frame.payload() = move(msg.serialize());
+    arp_frame.payload() = msg.serialize();  //diff between with func move?
     _frames_out.push(arp_frame);
 }

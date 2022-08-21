@@ -53,9 +53,9 @@ class NetworkInterface {
     //! every unknown ip has an queue to store
     //! and use frame waitin
     struct ip_pendframe{
-      size_t arp_req_time;      // just set once
+      size_t arp_req_time=0;      // just set once
       std::queue<EthernetFrame> pend_ip_frames{};
-      ip_pendframe():arp_req_time(0),pend_ip_frames(){};
+      //ip_pendframe():arp_req_time(0),pend_ip_frames(){};
     };
     std::map<uint32_t,ip_pendframe> _pend_frames{};
     static constexpr size_t MAX_RETX_WAITING_TIME = 5000; //! only resend ARP request for the same IPv4 address after 5000ms
