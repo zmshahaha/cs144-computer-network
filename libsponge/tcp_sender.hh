@@ -49,7 +49,7 @@ class TCPSender {
 
     void send_segment(TCPSegment &seg);
 
-  public:size_t win(){return _window_size;}
+  public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
               const uint16_t retx_timeout = TCPConfig::TIMEOUT_DFLT,

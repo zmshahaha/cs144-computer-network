@@ -16,11 +16,11 @@ size_t TCPConnection::remaining_outbound_capacity() const { return _sender.strea
 
 size_t TCPConnection::bytes_in_flight() const { return _sender.bytes_in_flight(); }
 
-size_t TCPConnection::unassembled_bytes() const {cerr<<"3"<<endl; return _receiver.unassembled_bytes(); }
+size_t TCPConnection::unassembled_bytes() const {return _receiver.unassembled_bytes(); }
 
-size_t TCPConnection::time_since_last_segment_received() const {cerr<<"4"<<endl; return _time_since_last_segment_received; }
+size_t TCPConnection::time_since_last_segment_received() const { return _time_since_last_segment_received; }
 
-void TCPConnection::segment_received(const TCPSegment &seg) {cerr<<"recv"<<endl;
+void TCPConnection::segment_received(const TCPSegment &seg) {
     if(!_active) return;
     _time_since_last_segment_received = 0; 
 
@@ -46,20 +46,25 @@ void TCPConnection::segment_received(const TCPSegment &seg) {cerr<<"recv"<<endl;
     // if it is from receiver just for ack (ack==true,data=='') ,it doesn't disrupt receiver for no data
     _receiver.segment_received(seg);
     // receive need to send ack by sender's help
+    // if sender's out isn't empty, send it along with data
     if (seg.length_in_sequence_space() > 0)
     {
         _sender.fill_window();
         if(_sender.segments_out().empty())
             _sender.send_empty_segment();
     }
-        // avoid _sender's out is empty
 
     // responding to a “keep-alive” segment.
     if (_receiver.ackno().has_value() && (seg.length_in_sequence_space() == 0)
         && seg.header().seqno == _receiver.ackno().value() - 1)
         _sender.send_empty_segment();
 
-    send_segment(); if(_sender.win()==0&&seg.header().ack!=0)_segments_out=std::queue<TCPSegment>();
+    send_segment(); 
+    
+    // just for fixing a bug that if the ack seg with win=0 ,don't send seg
+    // the erased seg would be sent again when win!=0 because sender's outstanding has a copy
+    if(!seg.header().win&&seg.header().ack)
+        _segments_out=std::queue<TCPSegment>();
 
     // check if need to linger
     if (inbound_ended() && !_sender.stream_in().eof()) {
@@ -69,7 +74,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {cerr<<"recv"<<endl;
 
 bool TCPConnection::active() const { return _active; }
 
-size_t TCPConnection::write(const string &data) { cerr<<"write"<<endl;
+size_t TCPConnection::write(const string &data) {
     if (!data.size()) return 0;
     size_t actually_write = _sender.stream_in().write(data);
     _sender.fill_window();
@@ -78,7 +83,7 @@ size_t TCPConnection::write(const string &data) { cerr<<"write"<<endl;
 }
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
-void TCPConnection::tick(const size_t ms_since_last_tick) {cerr<<"tick"<<endl;if(_sender.win()==0)_segments_out=std::queue<TCPSegment>();
+void TCPConnection::tick(const size_t ms_since_last_tick) {
     if(!_active) return;
 
     // tick the sender to do the retransmit
@@ -92,7 +97,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {cerr<<"tick"<<endl;if
         _receiver.stream_out().set_error();
         TCPSegment segment;
         segment.header().rst=true;
-        //clear tcpsegments so that the first is rst
+        // clear tcpsegments so that the first is rst
         _segments_out=std::queue<TCPSegment>();
         _segments_out.push(segment);
         _active = false;
@@ -100,24 +105,21 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {cerr<<"tick"<<endl;if
 
     // check if done
     if (inbound_ended() && outbound_ended()) {
-        if (!_linger_after_streams_finish) {
-            //_segments_out=std::queue<TCPSegment>();
+        if (!_linger_after_streams_finish)
             _active = false;
-        } else if (_time_since_last_segment_received >= 10 * _cfg.rt_timeout) {
-            //_segments_out=std::queue<TCPSegment>();
+        else if (_time_since_last_segment_received >= 10 * _cfg.rt_timeout)
             _active = false;
-        }
     }
 }
 
-void TCPConnection::end_input_stream() {cerr<<"end"<<endl;
+void TCPConnection::end_input_stream() {
     _sender.stream_in().end_input();
     // send FIN
     _sender.fill_window();
     send_segment();
 }
 
-void TCPConnection::connect() {cerr<<"conn"<<endl;
+void TCPConnection::connect() {
     // send SYN
     _sender.fill_window();
     send_segment();
@@ -130,12 +132,12 @@ TCPConnection::~TCPConnection() {
             // Your code here: need to send a RST segment to the peer
             _sender.stream_in().set_error();
             _receiver.stream_out().set_error();
-            
             TCPSegment segment;
             segment.header().rst=true;
-            //clear tcpsegments so that the first is rst
+            // clear tcpsegments so that the first is rst
             _segments_out=std::queue<TCPSegment>();
-            _segments_out.push(segment);_active = false;
+            _segments_out.push(segment);
+            _active = false;
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
