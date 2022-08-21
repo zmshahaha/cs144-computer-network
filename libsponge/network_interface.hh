@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <queue>
+#include <map>
 
 //! \brief A "network interface" that connects IP (the internet layer, or network layer)
 //! with Ethernet (the network access layer, or link layer).
@@ -39,6 +40,32 @@ class NetworkInterface {
 
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
+
+    //! store cached ip-mac
+    struct cached_mac{
+      EthernetAddress mac;
+      size_t time_to_erase;  // just set once
+    };
+    std::map<uint32_t, cached_mac> _mac_ip_cache{};    // may be one ip can corresponded multi mac??
+    static constexpr size_t MAX_CACHE_TIME = 30000;    //! cache the mapping for 30 seconds
+
+    //! store pended frame
+    //! every unknown ip has an queue to store
+    //! and use frame waitin
+    struct ip_pendframe{
+      size_t arp_req_time;      // just set once
+      std::queue<EthernetFrame> pend_ip_frames{};
+      ip_pendframe():arp_req_time(0),pend_ip_frames(){};
+    };
+    std::map<uint32_t,ip_pendframe> _pend_frames{};
+    static constexpr size_t MAX_RETX_WAITING_TIME = 5000; //! only resend ARP request for the same IPv4 address after 5000ms
+    
+    // real time timer, only increase
+    size_t _timer{0};  
+    void send_arp_request();
+    void send_helper(const uint16_t& arp_opcode,
+                     const uint32_t& target_ip_address,
+                     const EthernetAddress& target_ethernet_address=ETHERNET_BROADCAST);
 
   public:
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses
